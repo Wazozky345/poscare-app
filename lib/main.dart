@@ -13,6 +13,7 @@ void main() async {
   
   // UBAH BAGIAN INI AGAR MENGGUNAKAN OPTIONS
   await Firebase.initializeApp(
+    
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
