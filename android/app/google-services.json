@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "944428758195",
+    "project_id": "uas-poscare",
+    "storage_bucket": "uas-poscare.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:944428758195:android:d354ea90321d4b7c8aacc6",
+        "android_client_info": {
+          "package_name": "com.example.poscare"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCHhXTbxMhMBapjC_LYm1RJPNcLfCjv0Tc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
