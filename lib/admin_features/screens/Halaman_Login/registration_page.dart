@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // 1. IMPORT FIREBASE AUTH
+import 'package:cloud_firestore/cloud_firestore.dart'; // 2. IMPORT FIRESTORE
 
-// --- IMPORT WARNA ADMIN (BIAR SERAGAM) ---
+// --- IMPORT WARNA ADMIN ---
 import 'package:poscare/admin_features/core/admin_colors.dart';
 
-// --- IMPORT CONFIG (BUAT DATA DUMMY) ---
-// Pastikan path ini bener sesuai folder lu
+// --- IMPORT CONFIG ---
 import '../config.dart'; 
 
 class RegistrationPage extends StatefulWidget {
@@ -18,18 +19,16 @@ class _RegistrationPageState extends State<RegistrationPage> {
   final _emailCtl = TextEditingController();
   final _passCtl = TextEditingController();
   String _jenisKelamin = 'Laki-laki';
-  bool _isPasswordVisible = false; // Biar bisa liat password
+  bool _isPasswordVisible = false;
+  bool _isLoading = false; // 3. STATE LOADING
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      
-      // --- APP BAR SIMPEL ---
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        // Tombol Back Navy
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AdminColors.primary),
           onPressed: () => Navigator.pop(context),
@@ -40,23 +39,17 @@ class _RegistrationPageState extends State<RegistrationPage> {
         ),
         centerTitle: true,
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Kecil
             const Text(
               "Tambah Data Admin Baru",
-              style: TextStyle(
-                color: AdminColors.textGrey,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: AdminColors.textGrey, fontSize: 14),
             ),
             const SizedBox(height: 30),
 
-            // --- INPUT NAMA ---
             _buildLabel("Nama Lengkap"),
             TextField(
               controller: _namaCtl,
@@ -64,21 +57,19 @@ class _RegistrationPageState extends State<RegistrationPage> {
             ),
             const SizedBox(height: 20),
 
-            // --- INPUT EMAIL ---
             _buildLabel("Email"),
             TextField(
               controller: _emailCtl,
               keyboardType: TextInputType.emailAddress,
-              decoration: _inputDecoration(hint: "admin@poscare.com"),
+              decoration: _inputDecoration(hint: "Masukkan E-mail"),
             ),
             const SizedBox(height: 20),
 
-            // --- INPUT PASSWORD ---
             _buildLabel("Password"),
             TextField(
               controller: _passCtl,
               obscureText: !_isPasswordVisible,
-              decoration: _inputDecoration(hint: "********").copyWith(
+              decoration: _inputDecoration(hint: "Password Anda").copyWith(
                 suffixIcon: IconButton(
                   icon: Icon(
                     _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
@@ -90,13 +81,12 @@ class _RegistrationPageState extends State<RegistrationPage> {
             ),
             const SizedBox(height: 20),
 
-            // --- INPUT JENIS KELAMIN ---
             _buildLabel("Jenis Kelamin"),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade400), // Border abu biar gak kaku
+                border: Border.all(color: Colors.grey.shade400),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
@@ -119,26 +109,26 @@ class _RegistrationPageState extends State<RegistrationPage> {
             // --- TOMBOL AKSI ---
             Row(
               children: [
-                // TOMBOL SIMPAN (NAVY)
                 Expanded(
                   child: SizedBox(
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: _handleSimpan,
+                      onPressed: _isLoading ? null : _handleSimpan, // Nonaktifkan jika loading
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AdminColors.primary, // Warna Navy
+                        backgroundColor: AdminColors.primary,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         elevation: 2,
                       ),
-                      child: const Text(
-                        "SIMPAN",
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
-                      ),
+                      child: _isLoading 
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text(
+                            "SIMPAN",
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+                          ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 15),
-                // TOMBOL BATAL (ABU)
                 Expanded(
                   child: SizedBox(
                     height: 50,
@@ -148,10 +138,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
                         side: const BorderSide(color: Colors.grey),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      child: const Text(
-                        "BATAL",
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
-                      ),
+                      child: const Text("BATAL", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                     ),
                   ),
                 ),
@@ -163,19 +150,11 @@ class _RegistrationPageState extends State<RegistrationPage> {
     );
   }
 
-  // --- WIDGET HELPER (Biar Kodingan Bersih) ---
-
+  // --- WIDGET HELPER ---
   Widget _buildLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text, 
-        style: const TextStyle(
-          color: AdminColors.primary, 
-          fontWeight: FontWeight.bold, 
-          fontSize: 14
-        ),
-      ),
+      child: Text(text, style: const TextStyle(color: AdminColors.primary, fontWeight: FontWeight.bold, fontSize: 14)),
     );
   }
 
@@ -185,40 +164,55 @@ class _RegistrationPageState extends State<RegistrationPage> {
       hintStyle: const TextStyle(color: Colors.grey),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey.shade400),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AdminColors.primary, width: 2), // Fokus jadi Navy
-      ),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade400)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminColors.primary, width: 2)),
     );
   }
 
-  void _handleSimpan() {
+  // --- LOGIKA SIMPAN KE FIREBASE ---
+  Future<void> _handleSimpan() async {
     if (_namaCtl.text.isEmpty || _emailCtl.text.isEmpty || _passCtl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Data tidak boleh kosong"), backgroundColor: Colors.red),
       );
       return;
     }
-    
-    // --- LOGIKA SIMPAN DUMMY (SESUAI REQUEST) ---
-    databaseUser.add({
-      'username': _emailCtl.text,
-      'password': _passCtl.text,
-      'nama': _namaCtl.text,
-      'role': 'Admin',
-      'jk': _jenisKelamin,
-    });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Data Admin Berhasil Ditambahkan!"),
-        backgroundColor: AdminColors.menuOrtu, // Hijau
-      ),
-    );
-    Navigator.pop(context);
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. BUAT AKUN DI FIREBASE AUTH
+      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailCtl.text.trim(),
+        password: _passCtl.text.trim(),
+      );
+
+      // 2. SIMPAN DETAIL PROFIL KE CLOUD FIRESTORE
+      await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
+        'uid': userCredential.user!.uid,
+        'nama': _namaCtl.text.trim(),
+        'email': _emailCtl.text.trim(),
+        'role': 'Admin', // Memberi tanda bahwa ini akun admin
+        'jk': _jenisKelamin,
+        'createdAt': DateTime.now(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Akun Admin Berhasil Dibuat!"), backgroundColor: Colors.green),
+        );
+        Navigator.pop(context); // Kembali ke Login
+      }
+    } on FirebaseAuthException catch (e) {
+      String msg = "Gagal registrasi";
+      if (e.code == 'email-already-in-use') msg = "Email sudah digunakan!";
+      if (e.code == 'weak-password') msg = "Password terlalu lemah!";
+      
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 }

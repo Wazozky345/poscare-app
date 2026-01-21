@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // 1. IMPORT FIREBASE AUTH
 
 // --- IMPORT WARNA ADMIN ---
 import 'package:poscare/admin_features/core/admin_colors.dart'; 
@@ -18,22 +19,63 @@ class AdminLoginScreen extends StatefulWidget {
 
 class _AdminLoginScreenState extends State<AdminLoginScreen> {
   bool _isPasswordVisible = false;
+  bool _isLoading = false; // 2. TAMBAHKAN STATE LOADING
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  void _handleAdminLogin() {
-    // Validasi sederhana
+  // 3. FUNGSI HANDLE LOGIN DENGAN FIREBASE
+  Future<void> _handleAdminLogin() async {
+    // Validasi input kosong
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(content: Text("Email dan Password harus diisi!")),
-       );
-       return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Email dan Password harus diisi!")),
+      );
+      return;
     }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const DashboardAdminPage(namaUser: "Admin")),
-    );
+    setState(() => _isLoading = true); // Mulai loading
+
+    try {
+      // PROSES LOGIN KE FIREBASE
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      if (mounted) {
+        // Jika berhasil, pindah ke Dashboard
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DashboardAdminPage(
+              namaUser: userCredential.user?.email?.split('@')[0] ?? "Admin",
+            ),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      // HANDLING ERROR SPESIFIK FIREBASE
+      String message = "Terjadi kesalahan saat login";
+      if (e.code == 'user-not-found') {
+        message = "Email tidak terdaftar sebagai admin";
+      } else if (e.code == 'wrong-password') {
+        message = "Password yang Anda masukkan salah";
+      } else if (e.code == 'invalid-email') {
+        message = "Format email tidak valid";
+      }
+
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: ${e.toString()}")),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false); // Berhenti loading
+    }
   }
 
   @override
@@ -54,15 +96,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           mainAxisAlignment: MainAxisAlignment.start, 
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            
-            
             const SizedBox(height: 100), 
-
-            // ICON ADMIN
             const Icon(Icons.admin_panel_settings, size: 80, color: AdminColors.primary),
             const SizedBox(height: 20),
-
-            // JUDUL
             const Text(
               'LOGIN ADMIN',
               style: TextStyle(
@@ -79,7 +115,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               style: TextStyle(fontSize: 14, color: AdminColors.textGrey),
               textAlign: TextAlign.center,
             ),
-
             const SizedBox(height: 40),
 
             // INPUT EMAIL
@@ -88,8 +123,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             TextField(
               controller: _emailController,
               cursorColor: AdminColors.primary,
+              keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
-                hintText: 'admin@poscare.com',
+                hintText: 'Masukkan E-mail',
                 prefixIcon: const Icon(Icons.email_outlined, color: AdminColors.primary),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 focusedBorder: OutlineInputBorder(
@@ -109,7 +145,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               obscureText: !_isPasswordVisible,
               cursorColor: AdminColors.primary,
               decoration: InputDecoration(
-                hintText: '********',
+                hintText: 'Password Anda',
                 prefixIcon: const Icon(Icons.lock_outline, color: AdminColors.primary),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 focusedBorder: OutlineInputBorder(
@@ -128,19 +164,25 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
             const SizedBox(height: 40),
 
-            // TOMBOL LOGIN
+            // TOMBOL LOGIN (DENGAN INDIKATOR LOADING)
             SizedBox(
               height: 50,
               child: ElevatedButton(
-                onPressed: _handleAdminLogin,
+                onPressed: _isLoading ? null : _handleAdminLogin, // Nonaktifkan jika sedang loading
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AdminColors.primary,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                child: const Text(
-                  "MASUK",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AdminColors.white),
-                ),
+                child: _isLoading 
+                  ? const SizedBox(
+                      height: 20, 
+                      width: 20, 
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                    )
+                  : const Text(
+                      "MASUK",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AdminColors.white),
+                    ),
               ),
             ),
 
