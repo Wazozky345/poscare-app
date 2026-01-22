@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-
-// --- IMPORT WARNA ADMIN & CONFIG ---
+import 'package:cloud_firestore/cloud_firestore.dart'; // 1. IMPORT FIRESTORE
 import 'package:poscare/admin_features/core/admin_colors.dart';
-import '../config.dart'; // File data dummy (globalDataAnak)
-import 'form_data_anak_page.dart'; // Halaman Form
+import 'form_data_anak_page.dart';
 
 class HalamanDataAnak extends StatefulWidget {
   const HalamanDataAnak({super.key});
@@ -14,34 +12,22 @@ class HalamanDataAnak extends StatefulWidget {
 
 class _HalamanDataAnakState extends State<HalamanDataAnak> {
   final TextEditingController _searchCtrl = TextEditingController();
+  // 2. REFERENCE KE KOLEKSI FIREBASE
+  final CollectionReference _anakRef = FirebaseFirestore.instance.collection('data_anak');
 
-  // --- LOGIC: FILTER SEARCH (TETAP SAMA) ---
-  List<Map<String, dynamic>> get _filteredData {
-    if (_searchCtrl.text.isEmpty) return globalDataAnak;
-    return globalDataAnak
-        .where((item) => item['nama'].toString().toLowerCase().contains(
-              _searchCtrl.text.toLowerCase(),
-            ))
-        .toList();
-  }
-
-  // --- LOGIC: NAVIGASI KE FORM (TETAP SAMA) ---
-  void _navigateToForm({Map<String, dynamic>? dataEdit, int? indexEdit}) async {
-    final result = await Navigator.push(
+  // --- LOGIC: NAVIGASI KE FORM ---
+  void _navigateToForm({Map<String, dynamic>? dataEdit, String? docId}) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => FormDataAnakPage(dataEdit: dataEdit, indexEdit: indexEdit),
+        builder: (context) => FormDataAnakPage(dataEdit: dataEdit, docId: docId),
       ),
     );
-
-    // Refresh kalau balik dari form
-    if (result == true) {
-      setState(() {});
-    }
+    // Tidak perlu setState karena StreamBuilder otomatis refresh
   }
 
-  // --- LOGIC: DELETE DATA (TETAP SAMA) ---
-  void _deleteData(int originalIndex) {
+  // --- LOGIC: DELETE DATA DARI FIREBASE ---
+  void _deleteData(String docId) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -58,14 +44,14 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
               backgroundColor: Colors.red,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            onPressed: () {
-              setState(() {
-                globalDataAnak.removeAt(originalIndex);
-              });
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Data berhasil dihapus"), backgroundColor: Colors.red),
-              );
+            onPressed: () async {
+              await _anakRef.doc(docId).delete(); // Hapus di Firebase
+              if (mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Data berhasil dihapus"), backgroundColor: Colors.red),
+                );
+              }
             },
             child: const Text("Hapus", style: TextStyle(color: Colors.white)),
           ),
@@ -74,7 +60,7 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
     );
   }
 
-  // --- LOGIC: DETAIL POPUP (TAMPILAN DIPERBAGUS DIKIT) ---
+  // --- LOGIC: DETAIL POPUP ---
   void _showDetailDialog(Map<String, dynamic> data) {
     showDialog(
       context: context,
@@ -98,7 +84,7 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
               _detailRow("Nama", data['nama']),
               _detailRow("JK", data['jk']),
               _detailRow("TTL", "${data['tempat_lahir'] ?? '-'}, ${data['tgl_lahir'] ?? '-'}"),
-              _detailRow("Anak Ke", data['anak_ke'] ?? '-'),
+              _detailRow("Anak Ke", data['anak_ke']?.toString() ?? '-'),
               _detailRow("Gol. Darah", data['gol_darah'] ?? '-'),
               _detailRow("No KK", data['no_kk'] ?? '-'),
               _detailRow("Nama Ibu", data['ibu']),
@@ -148,23 +134,17 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
     );
   }
 
-  // ==========================================
-  // UI UTAMA (THEME NAVY PREMIUM)
-  // ==========================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AdminColors.background, // Background Abu Bersih
-      
-      // APP BAR
+      backgroundColor: AdminColors.background,
       appBar: AppBar(
         title: const Text("Data Anak", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
-        backgroundColor: AdminColors.primary, // Navy
+        backgroundColor: AdminColors.primary,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-
       body: Column(
         children: [
           // 1. HEADER (SEARCH & ADD BUTTON)
@@ -179,7 +159,6 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
             ),
             child: Column(
               children: [
-                // Search Bar
                 TextField(
                   controller: _searchCtrl,
                   onChanged: (v) => setState(() {}),
@@ -197,8 +176,6 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
                   ),
                 ),
                 const SizedBox(height: 15),
-                
-                // Tombol Tambah Data (Full Width)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -209,7 +186,7 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
                       style: TextStyle(fontWeight: FontWeight.bold, color: AdminColors.primary),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white, // Putih biar kontras sama Navy
+                      backgroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                     ),
@@ -219,10 +196,24 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
             ),
           ),
 
-          // 2. LIST DATA (CARD STYLE)
+          // 2. LIST DATA (MENGGUNAKAN STREAMBUILDER)
           Expanded(
-            child: _filteredData.isEmpty
-                ? Center(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _anakRef.snapshots(), // Ambil data real-time
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return const Center(child: Text("Terjadi kesalahan"));
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                // Filter data berdasarkan search controller
+                final docs = snapshot.data!.docs.where((doc) {
+                  final nama = doc['nama'].toString().toLowerCase();
+                  return nama.contains(_searchCtrl.text.toLowerCase());
+                }).toList();
+
+                if (docs.isEmpty) {
+                  return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -231,26 +222,28 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
                         Text("Data tidak ditemukan", style: TextStyle(color: Colors.grey[500])),
                       ],
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: _filteredData.length,
-                    itemBuilder: (context, index) {
-                      final item = _filteredData[index];
-                      // Cari index asli di globalDataAnak buat fungsi Edit/Delete
-                      int originalIndex = globalDataAnak.indexOf(item);
+                  );
+                }
 
-                      return _buildAnakCard(item, originalIndex);
-                    },
-                  ),
+                return ListView.builder(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final item = docs[index].data() as Map<String, dynamic>;
+                    final docId = docs[index].id; // ID dokumen untuk edit/hapus
+
+                    return _buildAnakCard(item, docId);
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  // --- WIDGET KARTU DATA (PENGGANTI TABEL) ---
-  Widget _buildAnakCard(Map<String, dynamic> item, int originalIndex) {
+  Widget _buildAnakCard(Map<String, dynamic> item, String docId) {
     bool isLaki = item['jk'] == 'Laki-laki';
 
     return Container(
@@ -270,7 +263,6 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
         padding: const EdgeInsets.all(15.0),
         child: Row(
           children: [
-            // 1. Avatar Icon
             Container(
               width: 50,
               height: 50,
@@ -285,8 +277,6 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
               ),
             ),
             const SizedBox(width: 15),
-
-            // 2. Info Utama
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -307,25 +297,20 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
                 ],
               ),
             ),
-
-            // 3. Tombol Aksi (Kecil-kecil di kanan)
             Column(
               children: [
-                // Tombol Detail (Info)
                 InkWell(
                   onTap: () => _showDetailDialog(item),
                   child: const Icon(Icons.info_outline, color: Colors.amber, size: 22),
                 ),
                 const SizedBox(height: 10),
-                // Tombol Edit
                 InkWell(
-                  onTap: () => _navigateToForm(dataEdit: item, indexEdit: originalIndex),
+                  onTap: () => _navigateToForm(dataEdit: item, docId: docId),
                   child: const Icon(Icons.edit_note, color: AdminColors.primary, size: 24),
                 ),
-                 const SizedBox(height: 10),
-                // Tombol Hapus
+                const SizedBox(height: 10),
                 InkWell(
-                  onTap: () => _deleteData(originalIndex),
+                  onTap: () => _deleteData(docId),
                   child: const Icon(Icons.delete_outline, color: Colors.red, size: 22),
                 ),
               ],

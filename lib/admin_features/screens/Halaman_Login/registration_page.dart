@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // 2. IMPORT FIRESTORE
 import 'package:poscare/admin_features/core/admin_colors.dart';
 
 // --- IMPORT CONFIG ---
-import '../config.dart'; 
+import 'package:poscare/admin_features/screens/config.dart'; 
 
 class RegistrationPage extends StatefulWidget {
   const RegistrationPage({super.key});

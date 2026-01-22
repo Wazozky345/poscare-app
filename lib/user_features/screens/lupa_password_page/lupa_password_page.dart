@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'ubah_sandi_page.dart'; // Pastikan nama file ini sesuai
+import 'package:firebase_auth/firebase_auth.dart'; // 1. IMPORT FIREBASE
+import 'package:poscare/user_features/screens/lupa_password_page/ubah_sandi_page.dart'; 
 
 // --- WARNA UTAMA (PINK) SESUAI TEMA ---
 const Color mainPink = Color(0xFFD81B60); 
@@ -13,6 +14,57 @@ class LupaPasswordPage extends StatefulWidget {
 
 class _LupaPasswordPageState extends State<LupaPasswordPage> {
   final TextEditingController _emailCtrl = TextEditingController();
+  bool _isLoading = false; // 2. TAMBAHKAN LOADING STATE
+
+  // 3. FUNGSI LOGIK FIREBASE
+  Future<void> _handleResetPassword() async {
+    String email = _emailCtrl.text.trim();
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Silakan masukkan email Anda")),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Mengirim email reset password otomatis dari Firebase
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+
+      if (mounted) {
+        // Beri tahu user bahwa email sudah dikirim
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            title: const Text("Email Terkirim"),
+            content: Text("Link untuk mengatur ulang kata sandi telah dikirim ke $email. Silakan cek Inbox atau folder Spam Anda."),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx); // Tutup Dialog
+                  Navigator.pop(context); // Kembali ke Login
+                },
+                child: const Text("Tutup", style: TextStyle(color: mainPink)),
+              ),
+            ],
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = "Terjadi kesalahan";
+      if (e.code == 'user-not-found') message = "Email tidak terdaftar!";
+      if (e.code == 'invalid-email') message = "Format email salah!";
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +75,7 @@ class _LupaPasswordPageState extends State<LupaPasswordPage> {
           "Lupa Password",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: mainPink, // Pink
+        backgroundColor: mainPink, 
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
       ),
@@ -34,38 +86,36 @@ class _LupaPasswordPageState extends State<LupaPasswordPage> {
           children: [
             const SizedBox(height: 30),
 
-            // --- 1. ILUSTRASI GAMBAR/ICON ---
             Container(
               height: 120,
               width: 120,
               decoration: BoxDecoration(
-                color: Colors.pink[50], // Background Pink Muda
+                color: Colors.pink[50], 
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.mark_email_read_outlined,
                 size: 60,
-                color: mainPink, // Icon Pink
+                color: mainPink, 
               ),
             ),
             const SizedBox(height: 30),
 
-            // --- 2. TEKS INSTRUKSI ---
             const Text(
               "Silahkan masukkan email Anda untuk\nmelakukan verifikasi",
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.black87, // Hitam biar lebih kebaca
+                color: Colors.black87, 
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
             ),
             const SizedBox(height: 30),
 
-            // --- 3. INPUT EMAIL ---
             TextField(
               controller: _emailCtrl,
               cursorColor: mainPink,
+              keyboardType: TextInputType.emailAddress, // Keyboard khusus email
               decoration: InputDecoration(
                 labelText: "Email",
                 labelStyle: const TextStyle(color: Colors.grey),
@@ -79,45 +129,40 @@ class _LupaPasswordPageState extends State<LupaPasswordPage> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: mainPink, width: 2), // Fokus Pink
+                  borderSide: const BorderSide(color: mainPink, width: 2), 
                 ),
               ),
             ),
             const SizedBox(height: 30),
 
-            // --- 4. TOMBOL VERIFIKASI ---
+            // --- TOMBOL VERIFIKASI (LOGIKA UPDATE) ---
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: mainPink, // Tombol Pink
+                  backgroundColor: mainPink, 
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                onPressed: () {
-                  // Pindah ke Halaman Ubah Sandi
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (c) => const UbahSandiPage()),
-                  );
-                },
-                child: const Text(
-                  "Verifikasi",
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                onPressed: _isLoading ? null : _handleResetPassword,
+                child: _isLoading 
+                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text(
+                      "Verifikasi",
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
               ),
             ),
             const SizedBox(height: 15),
 
-            // --- 5. TOMBOL CANCEL ---
             SizedBox(
               width: double.infinity,
               height: 50,
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: mainPink), // Garis Pink
+                  side: const BorderSide(color: mainPink), 
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -125,7 +170,7 @@ class _LupaPasswordPageState extends State<LupaPasswordPage> {
                 onPressed: () => Navigator.pop(context),
                 child: const Text(
                   "Cancel",
-                  style: TextStyle(color: mainPink, fontSize: 16), // Teks Pink
+                  style: TextStyle(color: mainPink, fontSize: 16), 
                 ),
               ),
             ),

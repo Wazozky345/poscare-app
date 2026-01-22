@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // 1. IMPORT FIREBASE
 
 // --- WARNA UTAMA (PINK) SESUAI TEMA ---
 const Color mainPink = Color(0xFFD81B60);
@@ -11,13 +12,61 @@ class UbahSandiPage extends StatefulWidget {
 }
 
 class _UbahSandiPageState extends State<UbahSandiPage> {
-  // Controller Text
   final TextEditingController _passCtrl = TextEditingController();
   final TextEditingController _confirmPassCtrl = TextEditingController();
 
-  // State untuk Mata (Show/Hide Password)
   bool _isObscure1 = true;
   bool _isObscure2 = true;
+  bool _isLoading = false; // 2. LOADING STATE
+
+  // 3. FUNGSI UPDATE PASSWORD KE FIREBASE
+  Future<void> _handleUpdatePassword() async {
+    String pass = _passCtrl.text.trim();
+    String confirm = _confirmPassCtrl.text.trim();
+
+    if (pass.isEmpty || confirm.isEmpty) {
+      _showSnackBar("Password tidak boleh kosong", Colors.red);
+      return;
+    }
+
+    if (pass != confirm) {
+      _showSnackBar("Konfirmasi password tidak cocok", Colors.red);
+      return;
+    }
+
+    if (pass.length < 6) {
+      _showSnackBar("Password minimal 6 karakter", Colors.red);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Mengubah password user yang sedang login
+      await FirebaseAuth.instance.currentUser?.updatePassword(pass);
+
+      if (mounted) {
+        _showSnackBar("Password berhasil diubah! Silahkan Login kembali.", Colors.green);
+        Navigator.popUntil(context, (route) => route.isFirst);
+      }
+    } on FirebaseAuthException catch (e) {
+      String msg = "Gagal mengubah password";
+      if (e.code == 'requires-recent-login') {
+        msg = "Sesi habis. Silahkan logout dan login kembali untuk ubah sandi.";
+      }
+      _showSnackBar(msg, Colors.red);
+    } catch (e) {
+      _showSnackBar("Error: $e", Colors.red);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSnackBar(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +77,7 @@ class _UbahSandiPageState extends State<UbahSandiPage> {
           "Ubah Kata Sandi Baru",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: mainPink, // Pink
+        backgroundColor: mainPink,
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
       ),
@@ -37,24 +86,16 @@ class _UbahSandiPageState extends State<UbahSandiPage> {
         child: Column(
           children: [
             const SizedBox(height: 30),
-
-            // --- 1. ILUSTRASI ---
             Container(
               height: 120,
               width: 120,
               decoration: BoxDecoration(
-                color: Colors.pink[50], // Background Pink Muda
+                color: Colors.pink[50],
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.lock_reset, 
-                size: 60,
-                color: mainPink, // Icon Pink
-              ),
+              child: const Icon(Icons.lock_reset, size: 60, color: mainPink),
             ),
             const SizedBox(height: 30),
-
-            // --- 2. TEKS INSTRUKSI ---
             const Text(
               "Silahkan masukan password baru\nanda",
               textAlign: TextAlign.center,
@@ -65,14 +106,10 @@ class _UbahSandiPageState extends State<UbahSandiPage> {
               ),
             ),
             const SizedBox(height: 30),
-
-            // --- 3. INPUT PASSWORD BARU ---
-            _buildPasswordField("Password", _passCtrl, _isObscure1, (val) {
+            _buildPasswordField("Password Baru", _passCtrl, _isObscure1, (val) {
               setState(() => _isObscure1 = val);
             }),
             const SizedBox(height: 20),
-
-            // --- 4. INPUT KONFIRMASI PASSWORD ---
             _buildPasswordField(
               "Konfirmasi Password",
               _confirmPassCtrl,
@@ -82,36 +119,21 @@ class _UbahSandiPageState extends State<UbahSandiPage> {
               },
             ),
             const SizedBox(height: 40),
-
-            // --- 5. TOMBOL SIMPAN ---
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: mainPink, // Tombol Pink
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  backgroundColor: mainPink,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: () {
-                  // Tampilkan Notifikasi Sukses
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      backgroundColor: Colors.green, // Snack bar ijo sukses
-                      content: Text(
-                        "Password berhasil diubah! Silahkan Login.",
-                        style: TextStyle(color: Colors.white),
-                      ),
+                onPressed: _isLoading ? null : _handleUpdatePassword, // 4. HUBUNGKAN KE FUNGSI
+                child: _isLoading 
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
+                      "Simpan",
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
-                  );
-                  // Kembali ke halaman Login (Pop sampai awal)
-                  Navigator.popUntil(context, (route) => route.isFirst);
-                },
-                child: const Text(
-                  "Simpan",
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
               ),
             ),
           ],
@@ -120,7 +142,6 @@ class _UbahSandiPageState extends State<UbahSandiPage> {
     );
   }
 
-  // Widget Helper biar kodingan rapi (Input Password + Mata)
   Widget _buildPasswordField(
     String label,
     TextEditingController ctrl,
@@ -141,13 +162,12 @@ class _UbahSandiPageState extends State<UbahSandiPage> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: mainPink, width: 2), // Fokus Pink
+          borderSide: const BorderSide(color: mainPink, width: 2),
         ),
-        // Tombol Mata
         suffixIcon: IconButton(
           icon: Icon(
             isObscure ? Icons.visibility_off : Icons.visibility,
-            color: mainPink, // Mata Pink
+            color: mainPink,
           ),
           onPressed: () => onToggle(!isObscure),
         ),

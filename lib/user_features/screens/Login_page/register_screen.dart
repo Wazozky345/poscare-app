@@ -33,7 +33,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
 
   // List pilihan Golongan Darah
-  final List<String> _golDarahOptions = ['A', 'B', 'AB', 'O'];
+  final List<String> _golDarahOptions = ['A', 'B', 'AB', 'O','Belum Mengetahui'];
 
   // Fungsi buat munculin Kalender
   Future<void> _selectDate(BuildContext context) async {

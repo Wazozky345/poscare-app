@@ -10,7 +10,6 @@ import 'package:poscare/admin_features/screens/config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
   // UBAH BAGIAN INI AGAR MENGGUNAKAN OPTIONS
   await Firebase.initializeApp(
     
