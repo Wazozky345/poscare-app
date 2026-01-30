@@ -1,0 +1,48 @@
+name: poscare
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  image_picker: ^1.0.7
+
+  # Icon iOS style
+  cupertino_icons: ^1.0.8
+  
+  # Firebase
+  firebase_core: ^4.3.0
+  firebase_auth: ^6.1.3
+  cloud_firestore: ^6.1.1
+
+  # --- TAMBAHAN UNTUK CETAK PDF ---
+  pdf: ^3.10.8      # Untuk membuat dokumen PDF
+  printing: ^5.11.1 # Untuk layout dan print preview
+  fl_chart: ^0.63.0  # <--- WAJIB UNTUK BIKIN GRAFIK
+  intl: ^0.20.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  # TAMBAHAN: Package untuk generate icon otomatis
+  flutter_launcher_icons: ^0.13.1 
+
+# KONFIGURASI ICON POSCARE
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/favicon.png" # Pastikan file ini ada di folder assets/images/
+  min_sdk_android: 21 
+
+flutter:
+  uses-material-design: true
+
+  # --- PENTING: DAFTARKAN FOLDER GAMBAR DISINI ---
+  assets:
+    - assets/images/
