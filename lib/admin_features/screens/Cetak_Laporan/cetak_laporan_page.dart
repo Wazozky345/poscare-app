@@ -27,7 +27,6 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
     "Juli": 7, "Agustus": 8, "September": 9, "Oktober": 10, "November": 11, "Desember": 12,
   };
 
-  // Helper format tanggal untuk UI & PDF
   String _formatTanggal(dynamic tgl) {
     if (tgl is Timestamp) {
       return DateFormat('dd-MM-yyyy').format(tgl.toDate());
@@ -36,20 +35,25 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
   }
 
   // ==========================================
-  // LOGIKA CETAK PDF (STYLE SESUAI CONTOH)
+  // LOGIKA CETAK PDF TERBARU (FIX FILE NAME)
   // ==========================================
   Future<void> _handlePrint(List<QueryDocumentSnapshot> filteredDocs) async {
     final doc = pw.Document();
+    final String currentYear = DateTime.now().year.toString();
+
+    // MENGGUNAKAN UNDERSCORE (_) UNTUK MEMASTIKAN WINDOWS MENGENALI NAMA FILE
+    // Contoh Hasil: Laporan_Bulanan_Posyandu_Januari_2026.pdf
+    final String cleanFileName = "Laporan_Bulanan_Posyandu_${selectedMonth}_$currentYear";
 
     doc.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.a4.landscape, // Landscape agar muat banyak kolom
+        pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.all(32),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // HEADER KOP SURAT (Sesuai image_666b0f.png)
+              // --- KOP SURAT ---
               pw.Center(
                 child: pw.Column(
                   children: [
@@ -68,7 +72,7 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
               ),
               pw.SizedBox(height: 15),
 
-              // INFO HEADER TABEL
+              // --- INFO HEADER ---
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
@@ -82,7 +86,7 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text("Bulan / Tahun : $selectedMonth / ${DateTime.now().year}"),
+                      pw.Text("Bulan / Tahun : $selectedMonth / $currentYear"),
                       pw.Text("Desa : Babakan Sari III"),
                     ],
                   ),
@@ -90,7 +94,7 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
               ),
               pw.SizedBox(height: 10),
 
-              // TABEL DATA (Sesuai image_70757f.png)
+              // --- TABEL DATA ---
               pw.Table.fromTextArray(
                 headers: ['No', 'Tanggal', 'Nama Anak', 'NIK Anak', 'Umur (Bln)', 'BB (kg)', 'TB (cm)', 'Kondisi'],
                 data: List.generate(filteredDocs.length, (index) {
@@ -117,7 +121,11 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
       ),
     );
 
-    await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => doc.save());
+    // FIX: Tambahkan parameter name dengan ekstensi .pdf secara eksplisit
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => doc.save(),
+      name: '$cleanFileName.pdf', 
+    );
   }
 
   @override
@@ -133,12 +141,10 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        // Memastikan koleksi sesuai dengan database
         stream: FirebaseFirestore.instance.collection('data_kesehatan_anak').snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
-          // Filter data berdasarkan bulan dari Timestamp 'tgl_posyandu'
           final filteredDocs = snapshot.data!.docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
             dynamic tgl = data['tgl_posyandu'];
@@ -150,12 +156,8 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
 
           return Column(
             children: [
-              // HEADER UI
               _buildFilterSection(filteredDocs),
-              
               const SizedBox(height: 20),
-
-              // PREVIEW LIST
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -167,7 +169,6 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
                   ],
                 ),
               ),
-
               Expanded(
                 child: filteredDocs.isEmpty
                     ? _buildEmptyState()
@@ -249,13 +250,13 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
   }
 
   Widget _buildEmptyState() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.folder_off, size: 60, color: Colors.grey),
-          SizedBox(height: 10),
-          Text("Data tidak ditemukan untuk periode ini", style: TextStyle(color: Colors.grey)),
+          const Icon(Icons.folder_off, size: 60, color: Colors.grey),
+          const SizedBox(height: 10),
+          Text("Tidak ada data di bulan $selectedMonth", style: const TextStyle(color: Colors.grey)),
         ],
       ),
     );

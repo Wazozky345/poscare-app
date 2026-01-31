@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // Wajib buat format tanggal
-import 'package:intl/date_symbol_data_local.dart'; // <--- TAMBAHAN PENTING
+import 'package:intl/intl.dart'; 
+import 'package:intl/date_symbol_data_local.dart'; 
 import 'package:poscare/admin_features/core/admin_colors.dart';
 
 class FormJadwalPosyanduPage extends StatefulWidget {
-  final String? docId; // ID Dokumen (Kalau null berarti Tambah)
-  final Map<String, dynamic>? dataEdit; // Data Lama (Kalau null berarti Tambah)
+  final String? docId; 
+  final Map<String, dynamic>? dataEdit; 
 
   const FormJadwalPosyanduPage({
     super.key,
@@ -29,12 +29,10 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
   @override
   void initState() {
     super.initState();
-    // Isi data kalau mode EDIT
     tglCtl = TextEditingController(text: widget.dataEdit?['tanggal_str']);
     jamBukaCtl = TextEditingController(text: widget.dataEdit?['jam_mulai']);
     jamTutupCtl = TextEditingController(text: widget.dataEdit?['jam_selesai']);
     
-    // Ambil Timestamp tanggal lama biar pas disimpan gak error
     if (widget.dataEdit != null && widget.dataEdit!['tanggal_date'] != null) {
       _selectedDate = (widget.dataEdit!['tanggal_date'] as Timestamp).toDate();
     }
@@ -48,10 +46,34 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
     super.dispose();
   }
 
+  // --- LOGIKA SIMULASI NOTIFIKASI ---
+  Future<void> _sendNotificationToAllUsers(String tanggal, String jam) async {
+    try {
+      QuerySnapshot userTokens = await FirebaseFirestore.instance
+          .collection('users')
+          .where('fcmToken', isNotEqualTo: null)
+          .get();
+
+      if (userTokens.docs.isEmpty) return;
+
+      // PERBAIKAN: Menggunakan variabel agar tidak "unused_local_variable"
+      String title = "🗓️ Jadwal Posyandu Baru";
+      String body = "Halo Bunda/Ayah, besok ada jadwal Posyandu pada $tanggal pukul $jam WIB. Jangan lupa bawa buku KIA ya!";
+
+      debugPrint("Kirim Notif: $title - $body ke ${userTokens.docs.length} user.");
+      
+    } catch (e) {
+      debugPrint("Gagal kirim notifikasi: $e");
+    }
+  }
+
   // --- LOGIC SIMPAN KE FIRESTORE ---
   Future<void> _saveToFirestore() async {
+    // Tambahkan pengecekan mounted sebelum menggunakan ScaffoldMessenger
     if (tglCtl.text.isEmpty || jamBukaCtl.text.isEmpty || jamTutupCtl.text.isEmpty || _selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Semua data wajib diisi!"), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Semua data wajib diisi!"), backgroundColor: Colors.red)
+      );
       return;
     }
 
@@ -59,28 +81,33 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
 
     try {
       final data = {
-        'tanggal_date': _selectedDate, // Format Date asli (buat sorting)
-        'tanggal_str': tglCtl.text, // Format String (buat display)
+        'tanggal_date': _selectedDate, 
+        'tanggal_str': tglCtl.text, 
         'jam_mulai': jamBukaCtl.text,
         'jam_selesai': jamTutupCtl.text,
         'updated_at': FieldValue.serverTimestamp(),
       };
 
       if (widget.docId == null) {
-        // Mode TAMBAH BARU
         data['created_at'] = FieldValue.serverTimestamp();
         await FirebaseFirestore.instance.collection('jadwal_posyandu').add(data);
+        await _sendNotificationToAllUsers(tglCtl.text, jamBukaCtl.text);
       } else {
-        // Mode EDIT
         await FirebaseFirestore.instance.collection('jadwal_posyandu').doc(widget.docId).update(data);
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Jadwal Berhasil Disimpan!"), backgroundColor: Colors.green));
-        Navigator.pop(context);
-      }
+      // PERBAIKAN: Gunakan if (!mounted) return untuk async gaps
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Jadwal Berhasil Disimpan!"), backgroundColor: Colors.green)
+      );
+      Navigator.pop(context);
+
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red)
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -88,8 +115,10 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
 
   // --- FUNGSI PICKER TANGGAL & WAKTU ---
   Future<void> _pickDate() async {
-    // 1. WAJIB: Initialisasi bahasa Indonesia dulu biar gak error
-    await initializeDateFormatting('id_ID', null); // <--- TAMBAHAN PENTING
+    await initializeDateFormatting('id_ID', null); 
+
+    // Simpan context ke variabel lokal sebelum async jika diperlukan
+    if (!mounted) return;
 
     DateTime? picked = await showDatePicker(
       context: context,
@@ -106,30 +135,35 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
       },
     );
 
-    if (picked != null) {
+    if (picked != null && mounted) {
       setState(() {
         _selectedDate = picked;
-        // Format Tampilan: Jumat, 30-01-2026 (Format Indonesia)
         tglCtl.text = DateFormat('EEEE, dd-MM-yyyy', 'id_ID').format(picked); 
       });
     }
   }
 
   Future<void> _pickTime(TextEditingController controller) async {
+    if (!mounted) return;
+    
     TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.now(),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: AdminColors.primary, onPrimary: Colors.white, onSurface: AdminColors.primary),
+            colorScheme: const ColorScheme.light(
+              primary: AdminColors.primary, 
+              onPrimary: Colors.white, 
+              onSurface: AdminColors.primary
+            ),
           ),
           child: child!,
         );
       },
     );
-    if (picked != null) {
-      // Format 24 Jam: 08:30
+
+    if (picked != null && mounted) {
       final localizations = MaterialLocalizations.of(context);
       String formattedTime = localizations.formatTimeOfDay(picked, alwaysUse24HourFormat: true);
       setState(() {
@@ -140,6 +174,7 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Bagian Build tetap sama seperti sebelumnya
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -156,7 +191,6 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            // Header Info
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
@@ -179,7 +213,6 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
             ),
             const SizedBox(height: 30),
 
-            // Input Tanggal
             _buildLabelInput(
               "Tanggal Pelaksanaan",
               _buildTextField(
@@ -191,7 +224,6 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
             ),
             const SizedBox(height: 20),
 
-            // Input Jam (Row 2 Kolom)
             Row(
               children: [
                 Expanded(
@@ -222,10 +254,8 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
 
             const SizedBox(height: 40),
 
-            // --- TOMBOL AKSI ---
             Row(
               children: [
-                // Simpan
                 Expanded(
                   child: SizedBox(
                     height: 50,
@@ -242,7 +272,6 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
                   ),
                 ),
                 const SizedBox(width: 15),
-                // Batal
                 Expanded(
                   child: SizedBox(
                     height: 50,
@@ -264,7 +293,6 @@ class _FormJadwalPosyanduPageState extends State<FormJadwalPosyanduPage> {
     );
   }
 
-  // --- WIDGET HELPER ---
   Widget _buildLabelInput(String label, Widget input) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

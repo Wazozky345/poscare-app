@@ -1,17 +1,63 @@
-// FILE: lib/user_features/screens/Home_page/home_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // Tambahkan ini
 import 'package:poscare/user_features/screens/Grafik_page/grafik_screen.dart';
 import 'package:poscare/user_features/screens/Ibu_Hamil_page/user_ibu_hamil_page.dart';
-// import 'package:poscare/user_features/screens/Imunisasi_page/imunisasi_screen.dart'; 
 import 'package:poscare/user_features/screens/Vaksin/list_vaksin_user_page.dart'; 
-import 'package:poscare/user_features/screens/Edukasi_page/edukasi_screen.dart'; // <-- JANGAN LUPA IMPORT INI
+import 'package:poscare/user_features/screens/Edukasi_page/edukasi_screen.dart';
 import '../../core/colors.dart';
 
-class HomeScreen extends StatelessWidget {
+// Ubah ke StatefulWidget agar bisa menjalankan initToken()
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  
+  @override
+  void initState() {
+    super.initState();
+    // Jalankan pengambilan token saat home terbuka
+    _setupPushNotifications();
+  }
+
+  // ==========================================
+  // LOGIKA NOTIFIKASI (SIMPAN TOKEN KE FIRESTORE)
+  // ==========================================
+  Future<void> _setupPushNotifications() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    // 1. Minta Izin Notifikasi
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      // 2. Ambil Token Perangkat (FCM Token)
+      String? token = await messaging.getToken();
+
+      if (token != null) {
+        // 3. Simpan token ke dokumen user di Firestore
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .update({
+          'fcmToken': token,
+          'lastUpdateToken': FieldValue.serverTimestamp(),
+        });
+        print("FCM Token Berhasil Disimpan: $token");
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +72,6 @@ class HomeScreen extends StatelessWidget {
         automaticallyImplyLeading: false,
         title: Row(
           children: [
-            // --- LOGO ---
             Image.asset(
               'assets/images/logo_poscare.png', 
               height: 40,
@@ -34,14 +79,11 @@ class HomeScreen extends StatelessWidget {
                 return const Icon(Icons.local_hospital, color: AppColors.primaryColor, size: 30);
               },
             ),
-            
             const SizedBox(width: 10),
-            
             const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text("Poscare", style: TextStyle(color: AppColors.primaryColor, fontWeight: FontWeight.bold, fontSize: 18)),
-                // --- GANTI TAGLINE DISINI BANG ---
                 Text("Layanan Posyandu Digital", style: TextStyle(color: Colors.grey, fontSize: 10)), 
               ],
             )
@@ -58,7 +100,6 @@ class HomeScreen extends StatelessWidget {
             const Text("Layanan Poscare", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
             const SizedBox(height: 15),
             
-            // --- GRID MENU NAVIGASI ---
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -66,46 +107,24 @@ class HomeScreen extends StatelessWidget {
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
               children: [
-                // 1. IBU HAMIL
                 _buildMenuItem(context, "Ibu Hamil", Icons.pregnant_woman, Colors.pink, onTap: () {
-                    Navigator.push(
-                      context, 
-                      MaterialPageRoute(builder: (context) => const UserIbuHamilPage())
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const UserIbuHamilPage()));
                 }),
-
-                // 2. GRAFIK PERTUMBUHAN (Menu Anak)
                 _buildMenuItem(context, "Anak", Icons.show_chart, Colors.blue, onTap: () {
-                    Navigator.push(
-                      context, 
-                      MaterialPageRoute(builder: (context) => const UserGrafikPage())
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const UserGrafikPage()));
                 }),
-
-                // 3. MENU VAKSIN
                 _buildMenuItem(context, "Vaksin", Icons.vaccines, Colors.orange, onTap: () {
-                    Navigator.push(
-                      context, 
-                      MaterialPageRoute(builder: (context) => const ListVaksinUserPage()) 
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ListVaksinUserPage()));
                 }),
-
-                // 4. ARTIKEL (UDAH DIARAHIN KE EDUKASI)
                 _buildMenuItem(context, "Artikel", Icons.newspaper, Colors.green, onTap: () {
-                  Navigator.push(
-                    context, 
-                    MaterialPageRoute(builder: (context) => const EdukasiScreen()) // <-- NAVIGASI BARU
-                  );
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const EdukasiScreen()));
                 }),
               ],
             ),
             
             const SizedBox(height: 25),
-            
-            // --- JADWAL POSYANDU TERDEKAT ---
             const Text("Jadwal Posyandu Terdekat", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
             const SizedBox(height: 10),
-            
             _buildUpcomingScheduleCard(), 
             
             const SizedBox(height: 25),
@@ -118,9 +137,8 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // --- WIDGET PENDUKUNG ---
-
-  // 1. WIDGET JADWAL TERBARU
+  // --- WIDGET PENDUKUNG (Tetap sama namun dipindahkan ke dalam State) ---
+  
   Widget _buildUpcomingScheduleCard() {
     DateTime now = DateTime.now();
     DateTime todayStart = DateTime(now.year, now.month, now.day);
@@ -133,7 +151,6 @@ class HomeScreen extends StatelessWidget {
           .limit(1)
           .snapshots(),
       builder: (context, snapshot) {
-        
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
             height: 80,
@@ -216,6 +233,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  // --- Tambahkan Fungsi detailRow & detailPopup di sini agar bisa diakses ---
   void _showChildDetailUser(BuildContext context, Map<String, dynamic> data) {
     showDialog(
       context: context,
@@ -235,26 +253,19 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(data['nama'] ?? "Anak", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            Text("NIK: ${data['nik'] ?? '-'}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
             const Divider(),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            _detailRow("NIK", data['nik']),
             _detailRow("Jenis Kelamin", data['jk']),
-            _detailRow("Tinggi Badan", "${data['tb'] ?? 0} cm"),
-            _detailRow("Berat Badan", "${data['bb'] ?? 0} kg"),
-            _detailRow("Tempat, Tgl Lahir", "${data['tempat_lahir'] ?? '-'}, ${data['tgl_lahir'] ?? '-'}"),
-            _detailRow("Anak Ke-", "${data['anak_ke'] ?? '-'}"),
-            _detailRow("Gol. Darah", data['gol_darah'] ?? '-'),
+            _detailRow("TB / BB", "${data['tb']}cm / ${data['bb']}kg"),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Tutup", style: TextStyle(color: AppColors.primaryColor)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Tutup")),
         ],
       ),
     );
@@ -275,69 +286,31 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildDataAnakList(BuildContext context, String? uid) {
     if (uid == null) return const Text("Silahkan login ulang.");
-
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('data_anak')
           .where('parent_uid', isEqualTo: uid)
           .snapshots(),
-      
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)),
-            child: const Column(
-              children: [
-                Icon(Icons.child_care, color: Colors.grey, size: 40),
-                SizedBox(height: 10),
-                Text("Belum Ada Data Anak", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
-                Text("Hubungi Admin Posyandu untuk input data.", style: TextStyle(color: Colors.grey, fontSize: 10)),
-              ],
-            ),
-          );
-        }
-
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
         return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: snapshot.data!.docs.length,
           itemBuilder: (context, index) {
             var data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-            String nama = data['nama'] ?? 'Tanpa Nama';
-            String jk = data['jk'] ?? '-';
-            String tgl = data['tgl_lahir'] ?? '-';
-
             return InkWell( 
               onTap: () => _showChildDetailUser(context, data),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5, spreadRadius: 1)],
-                ),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
                 child: Row(
                   children: [
-                    CircleAvatar(
-                      backgroundColor: jk == "Laki-laki" ? Colors.blue.shade100 : Colors.pink.shade100,
-                      child: Icon(Icons.face, color: jk == "Laki-laki" ? Colors.blue : Colors.pink),
-                    ),
+                    CircleAvatar(child: const Icon(Icons.face)),
                     const SizedBox(width: 15),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(nama, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                          const SizedBox(height: 4),
-                          Text("Lahir: $tgl • $jk", style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                        ],
-                      ),
-                    ),
+                    Text(data['nama'] ?? 'Tanpa Nama', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const Spacer(),
                     const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
                   ],
                 ),

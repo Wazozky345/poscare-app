@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../../core/colors.dart';
 import '../main_screen.dart';
@@ -17,47 +18,70 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordVisible = false;
-  // bool _rememberMe = false; // FITUR INGAT SAYA DIHAPUS
   bool _isLoading = false;
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // --- LOGIKA LOGIN USER (STANDARD & JELAS) ---
+  // --- LOGIKA UPDATE TOKEN SAAT LOGIN ---
+  Future<void> _updateFCMToken(String uid) async {
+    try {
+      FirebaseMessaging messaging = FirebaseMessaging.instance;
+      
+      // Memberikan timeout agar jika FCM gagal, login tetap bisa lanjut
+      NotificationSettings settings = await messaging.requestPermission().timeout(const Duration(seconds: 5));
+      
+      if (settings.authorizationStatus == AuthorizationStatus.authorized || 
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        
+        String? token = await messaging.getToken().timeout(const Duration(seconds: 5));
+
+        if (token != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .update({
+            'fcmToken': token,
+            'lastLogin': FieldValue.serverTimestamp(),
+          });
+          debugPrint("FCM Token Updated: $token");
+        }
+      }
+    } catch (e) {
+      // Jika error pada notifikasi, kita hanya log saja agar login tidak stuck
+      debugPrint("Warning: Gagal update FCM Token: $e");
+    }
+  }
+
+  // --- LOGIKA LOGIN USER ---
   void _handleUserLogin() async {
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
 
-    // 1. VALIDASI INPUT
-    if (email.isEmpty && password.isEmpty) {
-      _showSnackBar("Harap lengkapi Email dan Password.", Colors.red);
-      return;
-    } else if (email.isEmpty) {
-      _showSnackBar("Mohon isi alamat Email.", Colors.red);
-      return;
-    } else if (password.isEmpty) {
-      _showSnackBar("Mohon isi Password.", Colors.red);
+    if (email.isEmpty || password.isEmpty) {
+      _showSnackBar("Harap isi Email dan Password.", Colors.red);
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // 2. LOGIN FIREBASE
-      // Kita biarkan Firebase yang membedakan errornya secara otomatis
+      // 1. Proses Autentikasi
       UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // 3. CEK ROLE USER
+      // 2. Cek apakah dokumen user ada di Firestore
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(userCredential.user!.uid)
           .get();
 
       if (userDoc.exists) {
-        // SUKSES
+        // 3. Update Token (dengan penanganan agar tidak membuat stuck)
+        await _updateFCMToken(userCredential.user!.uid);
+
         if (mounted) {
           Navigator.pushReplacement(
             context,
@@ -65,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else {
-        // LOGIN BERHASIL TAPI BUKAN USER
+        // Jika akun ada di Auth tapi tidak ada di koleksi 'users'
         await FirebaseAuth.instance.signOut();
         if (mounted) {
           _showSnackBar("Akun ini tidak terdaftar sebagai Pengguna.", Colors.orange);
@@ -73,30 +97,21 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
     } on FirebaseAuthException catch (e) {
-      // 4. HANDLING ERROR (PESAN DIPISAH DISINI)
       String message = "Terjadi kesalahan sistem.";
-
-      if (e.code == 'user-not-found') {
-        // KHUSUS EMAIL TIDAK ADA
-        message = "Email belum terdaftar. Silakan registrasi terlebih dahulu.";
+      
+      // Perbaikan logika pesan error agar lebih akurat
+      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+        message = "Email atau Password salah.";
       } else if (e.code == 'wrong-password') {
-        // KHUSUS PASSWORD SALAH
-        message = "Kata sandi yang Anda masukkan salah.";
-      } else if (e.code == 'invalid-email') {
-        message = "Format email tidak valid.";
-      } else if (e.code == 'user-disabled') {
-        message = "Akun ini telah dinonaktifkan.";
-      } else if (e.code == 'too-many-requests') {
-        message = "Terlalu banyak percobaan. Silakan tunggu beberapa saat.";
-      } else if (e.code == 'invalid-credential') {
-        // Fallback jika Firebase menyembunyikan detail error
-        message = "Kata sandi salah atau Email belum terdaftar."; 
+        message = "Kata sandi salah.";
+      } else if (e.code == 'network-request-failed') {
+        message = "Koneksi internet bermasalah.";
       }
 
       if (mounted) _showSnackBar(message, Colors.red);
       
     } catch (e) {
-      if (mounted) _showSnackBar("Error: ${e.toString()}", Colors.red);
+      if (mounted) _showSnackBar("Gagal masuk: ${e.toString()}", Colors.red);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -108,8 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
         content: Text(message),
         backgroundColor: color,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(10),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -165,7 +179,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // --- BAGIAN INI DIUBAH: HAPUS CHECKBOX, SISAKAN LUPA PASSWORD DI KANAN ---
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
@@ -173,7 +186,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: const Text("Lupa Password?", style: TextStyle(color: AppColors.secondaryColor)),
                 ),
               ),
-              // --------------------------------------------------------------------------
               
               const SizedBox(height: 20),
 
@@ -186,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   child: _isLoading 
-                    ? const CircularProgressIndicator(color: Colors.white) 
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
                     : const Text("LOGIN", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ),
