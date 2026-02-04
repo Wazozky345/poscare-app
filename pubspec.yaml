@@ -35,9 +35,11 @@ dev_dependencies:
 
 # KONFIGURASI ICON POSCARE
 flutter_launcher_icons:
-  android: "launcher_icon"
+  android: true
   ios: true
   image_path: "assets/images/favicon.png"
+  adaptive_icon_background: "#ffffff" 
+  adaptive_icon_foreground: "assets/images/poscare_logo.png"
   min_sdk_android: 21 
 
 flutter:

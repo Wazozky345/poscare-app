@@ -23,20 +23,33 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // --- LOGIKA UPDATE TOKEN SAAT LOGIN ---
+  // --- LOGIKA UPDATE TOKEN SAAT LOGIN (DISEMPURNAKAN) ---
   Future<void> _updateFCMToken(String uid) async {
     try {
       FirebaseMessaging messaging = FirebaseMessaging.instance;
       
-      // Memberikan timeout agar jika FCM gagal, login tetap bisa lanjut
-      NotificationSettings settings = await messaging.requestPermission().timeout(const Duration(seconds: 5));
+      // 1. Minta izin notifikasi dengan timeout agar tidak stuck
+      NotificationSettings settings = await messaging.requestPermission().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => throw 'Request Permission Timeout',
+      );
       
       if (settings.authorizationStatus == AuthorizationStatus.authorized || 
           settings.authorizationStatus == AuthorizationStatus.provisional) {
         
-        String? token = await messaging.getToken().timeout(const Duration(seconds: 5));
+        // 2. Ambil token FCM
+        String? token = await messaging.getToken().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => throw 'Get Token Timeout',
+        );
 
         if (token != null) {
+          // Cetak kode ini di console untuk Anda salin ke Firebase Console
+          debugPrint("======================================================");
+          debugPrint("FCM TOKEN UNTUK TES: $token");
+          debugPrint("======================================================");
+
+          // 3. Update ke Firestore berdasarkan UID user yang sedang login
           await FirebaseFirestore.instance
               .collection('users')
               .doc(uid)
@@ -44,12 +57,13 @@ class _LoginScreenState extends State<LoginScreen> {
             'fcmToken': token,
             'lastLogin': FieldValue.serverTimestamp(),
           });
-          debugPrint("FCM Token Updated: $token");
+          
+          debugPrint("Firestore: FCM Token berhasil diperbarui.");
         }
       }
     } catch (e) {
-      // Jika error pada notifikasi, kita hanya log saja agar login tidak stuck
-      debugPrint("Warning: Gagal update FCM Token: $e");
+      // Log error saja agar user tetap bisa masuk ke MainScreen meskipun FCM gagal
+      debugPrint("Warning: Gagal memproses FCM Token: $e");
     }
   }
 
@@ -66,20 +80,20 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Proses Autentikasi
+      // 1. Proses Autentikasi Firebase
       UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // 2. Cek apakah dokumen user ada di Firestore
+      // 2. Verifikasi data user di Firestore
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(userCredential.user!.uid)
           .get();
 
       if (userDoc.exists) {
-        // 3. Update Token (dengan penanganan agar tidak membuat stuck)
+        // 3. Jalankan proses update token
         await _updateFCMToken(userCredential.user!.uid);
 
         if (mounted) {
@@ -89,29 +103,25 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else {
-        // Jika akun ada di Auth tapi tidak ada di koleksi 'users'
         await FirebaseAuth.instance.signOut();
         if (mounted) {
-          _showSnackBar("Akun ini tidak terdaftar sebagai Pengguna.", Colors.orange);
+          _showSnackBar("Akun ini tidak terdaftar di database pengguna.", Colors.orange);
         }
       }
 
     } on FirebaseAuthException catch (e) {
-      String message = "Terjadi kesalahan sistem.";
+      String message = "Gagal masuk. Periksa kembali koneksi Anda.";
       
-      // Perbaikan logika pesan error agar lebih akurat
-      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
         message = "Email atau Password salah.";
-      } else if (e.code == 'wrong-password') {
-        message = "Kata sandi salah.";
       } else if (e.code == 'network-request-failed') {
-        message = "Koneksi internet bermasalah.";
+        message = "Koneksi internet tidak stabil.";
       }
 
       if (mounted) _showSnackBar(message, Colors.red);
       
     } catch (e) {
-      if (mounted) _showSnackBar("Gagal masuk: ${e.toString()}", Colors.red);
+      if (mounted) _showSnackBar("Error: ${e.toString()}", Colors.red);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
