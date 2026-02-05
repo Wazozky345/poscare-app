@@ -194,7 +194,24 @@ class _FormDataPosyanduPageState extends State<FormDataPosyanduPage> {
                       ),
                     ),
                     title: Text(data['nama'] ?? "Tanpa Nama", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text("Ibu: ${data['ibu'] ?? '-'}"), 
+                    
+                    // --- UPDATE DI SINI: LOAD DATA IBU SECARA REALTIME DARI TABEL USERS ---
+                    subtitle: FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance.collection('users').doc(data['parent_uid']).get(),
+                      builder: (context, snapshotOrtu) {
+                        if (snapshotOrtu.connectionState == ConnectionState.waiting) {
+                          return const Text("Ibu: Memuat...", style: TextStyle(fontSize: 12, color: Colors.grey));
+                        }
+                        if (snapshotOrtu.hasData && snapshotOrtu.data!.exists) {
+                          var dataIbu = snapshotOrtu.data!.data() as Map<String, dynamic>;
+                          String namaIbu = dataIbu['nama'] ?? "Tanpa Nama";
+                          return Text("Ibu: $namaIbu", style: const TextStyle(color: AdminColors.textDark));
+                        }
+                        return const Text("Ibu: - (Data Ortu Hilang)");
+                      },
+                    ),
+                    // --------------------------------------------------------------------
+
                     onTap: () {
                       setState(() {
                         namaAnakCtl.text = data['nama'] ?? '';
@@ -323,7 +340,7 @@ class _FormDataPosyanduPageState extends State<FormDataPosyanduPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // --- VAKSIN DINAMIS (FIXED: PAKE LIST BIASA, BUKAN STREAM DI SINI) ---
+                // --- VAKSIN DINAMIS ---
                 const Text("Vaksin yang Diberikan:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AdminColors.textDark)),
                 const SizedBox(height: 10),
                 Container(
@@ -334,7 +351,7 @@ class _FormDataPosyanduPageState extends State<FormDataPosyanduPage> {
                     borderRadius: BorderRadius.circular(10),
                     ),
                     child: _isLoadingVaksin
-                      ? const Center(child: LinearProgressIndicator()) // Loading pas awal aja
+                      ? const Center(child: LinearProgressIndicator()) 
                       : _masterVaksinList.isEmpty
                         ? const Text("Belum ada data vaksin di Master Data.", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic))
                         : Wrap(
