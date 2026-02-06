@@ -1,3 +1,8 @@
+plugins {
+    id("com.google.gms.google-services") version "4.4.0" apply false
+}
+
+// --- 2. BARU RAKYATNYA (CONFIG LAIN) DI BAWAH ---
 allprojects {
     repositories {
         google()
@@ -18,9 +23,4 @@ subprojects {
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
-}
-
-// Pastikan bagian plugins ini ada di paling bawah
-plugins {
-    id("com.google.gms.google-services") version "4.4.0" apply false
 }

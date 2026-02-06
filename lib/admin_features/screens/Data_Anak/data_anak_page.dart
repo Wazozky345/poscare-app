@@ -1,5 +1,3 @@
-// FILE: lib/admin_features/screens/Data_Anak/data_anak_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'package:poscare/admin_features/core/admin_colors.dart';
@@ -25,49 +23,104 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
     );
   }
 
-  // --- LOGIC: DELETE DATA (SUDAH FIX) ---
-  void _deleteData(String docId) {
+  // --- LOGIC: DELETE DATA (VERSI GANTENG & BIRU) ---
+  void _deleteData(String docId, String namaAnak) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Hapus Data?", style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text("Yakin ingin menghapus data ini? Data yang dihapus tidak bisa kembali."),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Batal", style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(20),
+        title: Column(
+          children: [
+            // 1. IKON TONG SAMPAH (BIRU ADMIN)
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: AdminColors.primary.withOpacity(0.1), // Biru Muda Transparan
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.delete_outline_rounded, size: 50, color: AdminColors.primary), // Ikon Biru
             ),
-            onPressed: () async {
-              Navigator.pop(ctx); // Tutup dialog dulu
-              try {
-                await _anakRef.doc(docId).delete();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Data berhasil dihapus"), backgroundColor: Colors.red),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Gagal menghapus: $e")),
-                  );
-                }
-              }
-            },
-            child: const Text("Hapus", style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 15),
+            // 2. JUDUL
+            const Text(
+              "Hapus Data?",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: AdminColors.textDark),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Anda yakin ingin menghapus data anak atas nama \"$namaAnak\"?",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            const SizedBox(height: 5),
+            const Text(
+              "Data yang dihapus tidak bisa dikembalikan.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        actions: [
+          Row(
+            children: [
+              // TOMBOL BATAL
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    side: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text("Batal", style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              
+              // TOMBOL HAPUS (SEKARANG BIRU)
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminColors.primary, // <--- INI DIA BIRU ADMIN
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(ctx); // Tutup dialog dulu
+                    try {
+                      await _anakRef.doc(docId).delete();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Data berhasil dihapus"), backgroundColor: Colors.green),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Gagal menghapus: $e"), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text("Hapus", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  // --- DETAIL POPUP ADMIN (SUDAH UPDATE TB & BB) ---
+  // --- DETAIL POPUP ADMIN ---
   void _showDetailDialog(Map<String, dynamic> data) {
     showDialog(
       context: context,
@@ -107,7 +160,7 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
               _detailRow("NIK", data['nik']),
               _detailRow("Jenis Kelamin", data['jk']),
               
-              // [BARU] MENAMPILKAN TB DAN BB
+              // MENAMPILKAN TB DAN BB
               _detailRow("Tinggi Badan", "${data['tb'] ?? 0} cm"),
               _detailRow("Berat Badan", "${data['bb'] ?? 0} kg"),
               
@@ -195,15 +248,6 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
         ],
       ),
     );
-  }
-
-  String _formatTimestamp(dynamic timestamp) {
-    if (timestamp == null) return "-";
-    if (timestamp is Timestamp) {
-      DateTime date = timestamp.toDate();
-      return "${date.day}/${date.month}/${date.year}";
-    }
-    return "-";
   }
 
   @override
@@ -327,7 +371,11 @@ class _HalamanDataAnakState extends State<HalamanDataAnak> {
                 const SizedBox(height: 10),
                 InkWell(onTap: () => _navigateToForm(dataEdit: item, docId: docId), child: const Icon(Icons.edit_note, color: AdminColors.primary, size: 24)),
                 const SizedBox(height: 10),
-                InkWell(onTap: () => _deleteData(docId), child: const Icon(Icons.delete_outline, color: Colors.red, size: 22)),
+                // UPDATE: PASSING NAMA ANAK KE FUNGSI DELETE
+                InkWell(
+                  onTap: () => _deleteData(docId, item['nama'] ?? 'Anak'), 
+                  child: const Icon(Icons.delete_outline, color: Colors.red, size: 22)
+                ),
               ],
             ),
           ],

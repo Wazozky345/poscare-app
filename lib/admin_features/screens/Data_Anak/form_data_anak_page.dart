@@ -1,5 +1,3 @@
-// FILE: lib/admin_features/screens/Data_Anak/form_data_anak_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:poscare/admin_features/core/admin_colors.dart';
@@ -66,25 +64,27 @@ class _FormDataAnakPageState extends State<FormDataAnakPage> {
         });
       }
 
-      setState(() {
-        _parentList = parents;
-        
-        // --- LOGIC ANTI CRASH ---
-        // Cek apakah parent_uid yang lama MASIH ADA di daftar?
-        String? oldParentId = widget.dataEdit?['parent_uid'];
-        bool parentExists = _parentList.any((p) => p['uid'] == oldParentId);
+      if (mounted) {
+        setState(() {
+          _parentList = parents;
+          
+          // --- LOGIC ANTI CRASH ---
+          // Cek apakah parent_uid yang lama MASIH ADA di daftar?
+          String? oldParentId = widget.dataEdit?['parent_uid'];
+          bool parentExists = _parentList.any((p) => p['uid'] == oldParentId);
 
-        if (parentExists) {
-          selectedParentUid = oldParentId; // Kalo ada, pake.
-        } else {
-          selectedParentUid = null; // Kalo ortunya udah dihapus, kosongin (JANGAN CRASH)
-        }
-        
-        _isLoading = false;
-      });
+          if (parentExists) {
+            selectedParentUid = oldParentId; // Kalo ada, pake.
+          } else {
+            selectedParentUid = null; // Kalo ortunya udah dihapus, kosongin (JANGAN CRASH)
+          }
+          
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint("Error fetch parents: $e");
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -261,7 +261,7 @@ class _FormDataAnakPageState extends State<FormDataAnakPage> {
                       backgroundColor: AdminColors.primary,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
-                    onPressed: _handleSave, // Gak perlu cek isLoading lagi karena body-nya loading
+                    onPressed: _handleSave, 
                     child: const Text("SIMPAN DATA", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ),
@@ -298,15 +298,24 @@ class _FormDataAnakPageState extends State<FormDataAnakPage> {
     );
   }
 
+  // 👇 PERBAIKAN DI SINI (ANTI JEBOL KANAN) 👇
   Widget _buildDropdownField({required String value, required List<String> items, required Function(String?) onChanged}) {
-    // Pastikan value ada di items, kalau enggak default ke item pertama (Jaga-jaga error)
     if (!items.contains(value)) {
       value = items[0];
     }
     
     return DropdownButtonFormField<String>(
       value: value,
-      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 14)))).toList(),
+      isExpanded: true, // WAJIB: Biar gak nabrak kanan
+      items: items.map((e) => DropdownMenuItem(
+        value: e, 
+        child: Text(
+          e, 
+          style: const TextStyle(fontSize: 14),
+          overflow: TextOverflow.ellipsis, // WAJIB: Biar teks kepotong kalo kepanjangan
+          maxLines: 1,
+        )
+      )).toList(),
       onChanged: onChanged,
       decoration: InputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
@@ -354,4 +363,4 @@ class _FormDataAnakPageState extends State<FormDataAnakPage> {
       ],
     );
   }
-}
+} 

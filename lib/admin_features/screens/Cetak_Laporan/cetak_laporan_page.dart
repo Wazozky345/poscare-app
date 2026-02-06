@@ -16,6 +16,9 @@ class HalamanCetakLaporan extends StatefulWidget {
 }
 
 class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
+  // 0 = Laporan Anak, 1 = Laporan Ibu Hamil
+  int _selectedTab = 0; 
+  
   String selectedMonth = "Januari";
   final List<String> months = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -35,15 +38,17 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
   }
 
   // ==========================================
-  // LOGIKA CETAK PDF TERBARU (FIX FILE NAME)
+  // FUNGSI PRINT DINAMIS (BISA ANAK & IBU)
   // ==========================================
   Future<void> _handlePrint(List<QueryDocumentSnapshot> filteredDocs) async {
     final doc = pw.Document();
     final String currentYear = DateTime.now().year.toString();
 
-    // MENGGUNAKAN UNDERSCORE (_) UNTUK MEMASTIKAN WINDOWS MENGENALI NAMA FILE
-    // Contoh Hasil: Laporan_Bulanan_Posyandu_Januari_2026.pdf
-    final String cleanFileName = "Laporan_Bulanan_Posyandu_${selectedMonth}_$currentYear";
+    // Tentukan Judul & Nama File berdasarkan Tab yang dipilih
+    String reportTitle = _selectedTab == 0 ? "LAPORAN BULANAN POSYANDU (ANAK)" : "LAPORAN BULANAN IBU HAMIL";
+    String fileNamePrefix = _selectedTab == 0 ? "Laporan_Anak" : "Laporan_IbuHamil";
+    
+    final String cleanFileName = "${fileNamePrefix}_${selectedMonth}_$currentYear";
 
     doc.addPage(
       pw.Page(
@@ -53,7 +58,7 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // --- KOP SURAT ---
+              // --- KOP SURAT (SAMA UNTUK KEDUANYA) ---
               pw.Center(
                 child: pw.Column(
                   children: [
@@ -68,7 +73,7 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
               ),
               pw.SizedBox(height: 10),
               pw.Center(
-                child: pw.Text("LAPORAN BULANAN POSYANDU", style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline)),
+                child: pw.Text(reportTitle, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline)),
               ),
               pw.SizedBox(height: 15),
 
@@ -95,33 +100,56 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
               pw.SizedBox(height: 10),
 
               // --- TABEL DATA ---
-              pw.Table.fromTextArray(
-                headers: ['No', 'Tanggal', 'Nama Anak', 'NIK Anak', 'Umur (Bln)', 'BB (kg)', 'TB (cm)', 'Kondisi'],
-                data: List.generate(filteredDocs.length, (index) {
-                  final item = filteredDocs[index].data() as Map<String, dynamic>;
-                  return [
-                    "${index + 1}",
-                    _formatTanggal(item['tgl_posyandu']),
-                    item['nama_anak'] ?? "-",
-                    item['nik_anak'] ?? "-",
-                    "${item['umur_bulan'] ?? "-"}",
-                    "${item['bb'] ?? "-"}",
-                    "${item['tb'] ?? "-"}",
-                    item['kondisi'] ?? "-",
-                  ];
-                }),
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                cellAlignment: pw.Alignment.center,
-                border: pw.TableBorder.all(),
-                headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
-              ),
+              if (_selectedTab == 0) 
+                // TABEL ANAK
+                pw.Table.fromTextArray(
+                  headers: ['No', 'Tanggal', 'Nama Anak', 'NIK Anak', 'Umur (Bln)', 'BB (kg)', 'TB (cm)', 'Kondisi'],
+                  data: List.generate(filteredDocs.length, (index) {
+                    final item = filteredDocs[index].data() as Map<String, dynamic>;
+                    return [
+                      "${index + 1}",
+                      _formatTanggal(item['tgl_posyandu']),
+                      item['nama_anak'] ?? "-",
+                      item['nik_anak'] ?? "-",
+                      "${item['umur_bulan'] ?? "-"}",
+                      "${item['bb'] ?? "-"}",
+                      "${item['tb'] ?? "-"}",
+                      item['kondisi'] ?? "-",
+                    ];
+                  }),
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  cellAlignment: pw.Alignment.center,
+                  border: pw.TableBorder.all(),
+                  headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                )
+              else 
+                // TABEL IBU HAMIL
+                pw.Table.fromTextArray(
+                  headers: ['No', 'Tanggal', 'Nama Ibu', 'NIK', 'Usia Hamil', 'Tensi', 'BB (kg)', 'Kondisi'],
+                  data: List.generate(filteredDocs.length, (index) {
+                    final item = filteredDocs[index].data() as Map<String, dynamic>;
+                    return [
+                      "${index + 1}",
+                      _formatTanggal(item['tgl_pemeriksaan']), 
+                      item['nama'] ?? "-", 
+                      item['nik'] ?? "-", 
+                      "${item['usia_kehamilan'] ?? "-"} mgg", 
+                      item['tekanan_darah'] ?? "-", 
+                      "${item['berat_badan'] ?? "-"}", 
+                      item['riwayat_kesehatan'] ?? "Sehat", 
+                    ];
+                  }),
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  cellAlignment: pw.Alignment.center,
+                  border: pw.TableBorder.all(),
+                  headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                ),
             ],
           );
         },
       ),
     );
 
-    // FIX: Tambahkan parameter name dengan ekstensi .pdf secara eksplisit
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => doc.save(),
       name: '$cleanFileName.pdf', 
@@ -131,6 +159,10 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
   @override
   Widget build(BuildContext context) {
     int targetMonth = monthIndexes[selectedMonth]!;
+    
+    // Tentukan Koleksi & Field Tanggal berdasarkan Tab
+    String collectionName = _selectedTab == 0 ? 'data_kesehatan_anak' : 'ibu_hamil'; 
+    String dateField = _selectedTab == 0 ? 'tgl_posyandu' : 'tgl_pemeriksaan';
 
     return Scaffold(
       backgroundColor: AdminColors.background,
@@ -140,88 +172,128 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('data_kesehatan_anak').snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-
-          final filteredDocs = snapshot.data!.docs.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            dynamic tgl = data['tgl_posyandu'];
-            if (tgl is Timestamp) {
-              return tgl.toDate().month == targetMonth;
-            }
-            return false;
-          }).toList();
-
-          return Column(
-            children: [
-              _buildFilterSection(filteredDocs),
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    const Icon(Icons.analytics_outlined, size: 18, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    Text("Ditemukan ${filteredDocs.length} Data di bulan $selectedMonth", 
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: filteredDocs.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(20),
-                        itemCount: filteredDocs.length,
-                        itemBuilder: (context, index) {
-                          final item = filteredDocs[index].data() as Map<String, dynamic>;
-                          return _buildPreviewCard(item);
-                        },
-                      ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildFilterSection(List<QueryDocumentSnapshot> docs) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: AdminColors.primary,
-        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
-      ),
-      child: Column(
+      body: Column(
         children: [
+          // --- HEADER & FILTER ---
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: selectedMonth,
-                isExpanded: true,
-                items: months.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
-                onChanged: (val) => setState(() => selectedMonth = val!),
-              ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+            decoration: const BoxDecoration(
+              color: AdminColors.primary,
+              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+            ),
+            child: Column(
+              children: [
+                // TOMBOL GANTI MODE (TAB)
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Row(
+                    children: [
+                      _buildTabButton("Laporan Anak", 0),
+                      _buildTabButton("Laporan Ibu Hamil", 1),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // DROPDOWN BULAN
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: selectedMonth,
+                      isExpanded: true,
+                      items: months.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                      onChanged: (val) => setState(() => selectedMonth = val!),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 15),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              onPressed: docs.isEmpty ? null : () => _handlePrint(docs),
-              icon: const Icon(Icons.picture_as_pdf),
-              label: const Text("CETAK LAPORAN PDF"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AdminColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
+          
+          const SizedBox(height: 10),
+
+          // --- LIST DATA ---
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection(collectionName).snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+                // 1. FILTER BULAN
+                final filteredDocs = snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  dynamic tgl = data[dateField];
+                  if (tgl is Timestamp) {
+                    return tgl.toDate().month == targetMonth;
+                  }
+                  return false;
+                }).toList();
+
+                // 2. SORTING ASCENDING (Tanggal Muda ke Tua) 📈📅
+                filteredDocs.sort((a, b) {
+                  var dataA = a.data() as Map<String, dynamic>;
+                  var dataB = b.data() as Map<String, dynamic>;
+                  
+                  dynamic tA = dataA[dateField];
+                  dynamic tB = dataB[dateField];
+
+                  // Helper convert biar aman
+                  DateTime dateA = (tA is Timestamp) ? tA.toDate() : DateTime(3000); // 3000 biar kalo error taro belakang
+                  DateTime dateB = (tB is Timestamp) ? tB.toDate() : DateTime(3000);
+                  
+                  // Ascending: A dibandingkan dengan B (Tanggal Kecil di Atas)
+                  return dateA.compareTo(dateB); 
+                });
+
+                return Column(
+                  children: [
+                    // TOMBOL PRINT & JUMLAH DATA
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton.icon(
+                              onPressed: filteredDocs.isEmpty ? null : () => _handlePrint(filteredDocs),
+                              icon: const Icon(Icons.picture_as_pdf),
+                              label: Text("CETAK PDF (${_selectedTab == 0 ? 'ANAK' : 'IBU HAMIL'})"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AdminColors.primary,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text("Ditemukan ${filteredDocs.length} Data (Urut Tanggal 1 - Akhir)", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    
+                    // ISI LIST
+                    Expanded(
+                      child: filteredDocs.isEmpty
+                          ? _buildEmptyState()
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              itemCount: filteredDocs.length,
+                              itemBuilder: (context, index) {
+                                final item = filteredDocs[index].data() as Map<String, dynamic>;
+                                return _buildPreviewCard(item);
+                              },
+                            ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -229,23 +301,68 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
     );
   }
 
-  Widget _buildPreviewCard(Map<String, dynamic> item) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.person)),
-        title: Text(item['nama_anak'] ?? "-", style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text("BB: ${item['bb']}kg | TB: ${item['tb']}cm | ${_formatTanggal(item['tgl_posyandu'])}"),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  // --- WIDGET TOMBOL TAB ---
+  Widget _buildTabButton(String label, int index) {
+    bool isActive = _selectedTab == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedTab = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: item['kondisi'] == 'Sehat' ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(5),
+            color: isActive ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(item['kondisi'] ?? "-", style: TextStyle(color: item['kondisi'] == 'Sehat' ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 10)),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isActive ? AdminColors.primary : Colors.white70,
+            ),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPreviewCard(Map<String, dynamic> item) {
+    if (_selectedTab == 0) {
+      // MODE ANAK
+      return Card(
+        margin: const EdgeInsets.only(bottom: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ListTile(
+          leading: const CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.face, color: Colors.white)),
+          title: Text(item['nama_anak'] ?? "-", style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text("BB: ${item['bb']}kg | TB: ${item['tb']}cm | ${_formatTanggal(item['tgl_posyandu'])}"),
+          trailing: _statusChip(item['kondisi']),
+        ),
+      );
+    } else {
+      // MODE IBU HAMIL
+      return Card(
+        margin: const EdgeInsets.only(bottom: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ListTile(
+          leading: const CircleAvatar(backgroundColor: Colors.pinkAccent, child: Icon(Icons.pregnant_woman, color: Colors.white)),
+          title: Text(item['nama'] ?? "-", style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text("Hamil: ${item['usia_kehamilan']} mgg | Tensi: ${item['tekanan_darah']} | ${_formatTanggal(item['tgl_pemeriksaan'])}"),
+          trailing: const Icon(Icons.print, color: Colors.grey),
+        ),
+      );
+    }
+  }
+
+  Widget _statusChip(String? status) {
+    bool sehat = status == 'Sehat';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: sehat ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Text(status ?? "-", style: TextStyle(color: sehat ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 10)),
     );
   }
 

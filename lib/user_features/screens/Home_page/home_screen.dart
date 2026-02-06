@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // Tambahkan ini
+import 'package:firebase_messaging/firebase_messaging.dart'; 
 import 'package:poscare/user_features/screens/Grafik_page/grafik_screen.dart';
 import 'package:poscare/user_features/screens/Ibu_Hamil_page/user_ibu_hamil_page.dart';
 import 'package:poscare/user_features/screens/Vaksin/list_vaksin_user_page.dart'; 
 import 'package:poscare/user_features/screens/Edukasi_page/edukasi_screen.dart';
 import '../../core/colors.dart';
 
-// Ubah ke StatefulWidget agar bisa menjalankan initToken()
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -21,20 +20,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Jalankan pengambilan token saat home terbuka
     _setupPushNotifications();
   }
 
-  // ==========================================
-  // LOGIKA NOTIFIKASI (SIMPAN TOKEN KE FIRESTORE)
-  // ==========================================
+  // LOGIKA NOTIFIKASI
   Future<void> _setupPushNotifications() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     FirebaseMessaging messaging = FirebaseMessaging.instance;
-
-    // 1. Minta Izin Notifikasi
     NotificationSettings settings = await messaging.requestPermission(
       alert: true,
       badge: true,
@@ -42,11 +36,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      // 2. Ambil Token Perangkat (FCM Token)
       String? token = await messaging.getToken();
-
       if (token != null) {
-        // 3. Simpan token ke dokumen user di Firestore
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
@@ -100,12 +91,14 @@ class _HomeScreenState extends State<HomeScreen> {
             const Text("Layanan Poscare", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
             const SizedBox(height: 15),
             
+            // ANTI JEBOL BAWAH (Tetap Dipertahankan)
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 4,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
+              childAspectRatio: 1 / 1.3, 
               children: [
                 _buildMenuItem(context, "Ibu Hamil", Icons.pregnant_woman, Colors.pink, onTap: () {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const UserIbuHamilPage()));
@@ -137,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- WIDGET PENDUKUNG (Tetap sama namun dipindahkan ke dalam State) ---
+  // --- WIDGET PENDUKUNG ---
   
   Widget _buildUpcomingScheduleCard() {
     DateTime now = DateTime.now();
@@ -233,7 +226,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- Tambahkan Fungsi detailRow & detailPopup di sini agar bisa diakses ---
   void _showChildDetailUser(BuildContext context, Map<String, dynamic> data) {
     showDialog(
       context: context,
@@ -284,15 +276,57 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // 👇 UPDATE: ICON ANAK (FACE) & WARNA PINK 👇
   Widget _buildDataAnakList(BuildContext context, String? uid) {
     if (uid == null) return const Text("Silahkan login ulang.");
+    
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('data_anak')
           .where('parent_uid', isEqualTo: uid)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        // Kalo Data Kosong -> Tampil Kotak Cantik Pink
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(25),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey.shade200),
+              boxShadow: [
+                BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Ikon Muka Anak (Pink)
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: Colors.pink.withOpacity(0.1), // Background Pink Muda
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.face, size: 40, color: Colors.pink), // Ikon Pink
+                ),
+                const SizedBox(height: 15),
+                // Teks Singkat Saja
+                const Text(
+                  "Belum ada data anak",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Kalo Ada Data -> Tampil List
         return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
