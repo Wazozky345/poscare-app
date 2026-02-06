@@ -58,7 +58,7 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // --- KOP SURAT (SAMA UNTUK KEDUANYA) ---
+              // --- KOP SURAT ---
               pw.Center(
                 child: pw.Column(
                   children: [
@@ -123,7 +123,7 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
                   headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
                 )
               else 
-                // TABEL IBU HAMIL
+                // TABEL IBU HAMIL (FIX: SATUAN BULAN) 🛠️✅
                 pw.Table.fromTextArray(
                   headers: ['No', 'Tanggal', 'Nama Ibu', 'NIK', 'Usia Hamil', 'Tensi', 'BB (kg)', 'Kondisi'],
                   data: List.generate(filteredDocs.length, (index) {
@@ -133,7 +133,7 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
                       _formatTanggal(item['tgl_pemeriksaan']), 
                       item['nama'] ?? "-", 
                       item['nik'] ?? "-", 
-                      "${item['usia_kehamilan'] ?? "-"} mgg", 
+                      "${item['usia_kehamilan'] ?? "-"} Bulan", // <--- UDAH DIGANTI JADI 'Bulan'
                       item['tekanan_darah'] ?? "-", 
                       "${item['berat_badan'] ?? "-"}", 
                       item['riwayat_kesehatan'] ?? "Sehat", 
@@ -160,7 +160,6 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
   Widget build(BuildContext context) {
     int targetMonth = monthIndexes[selectedMonth]!;
     
-    // Tentukan Koleksi & Field Tanggal berdasarkan Tab
     String collectionName = _selectedTab == 0 ? 'data_kesehatan_anak' : 'ibu_hamil'; 
     String dateField = _selectedTab == 0 ? 'tgl_posyandu' : 'tgl_pemeriksaan';
 
@@ -235,7 +234,7 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
                   return false;
                 }).toList();
 
-                // 2. SORTING ASCENDING (Tanggal Muda ke Tua) 📈📅
+                // 2. SORTING ASCENDING (Tanggal 1 - 30)
                 filteredDocs.sort((a, b) {
                   var dataA = a.data() as Map<String, dynamic>;
                   var dataB = b.data() as Map<String, dynamic>;
@@ -243,11 +242,9 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
                   dynamic tA = dataA[dateField];
                   dynamic tB = dataB[dateField];
 
-                  // Helper convert biar aman
-                  DateTime dateA = (tA is Timestamp) ? tA.toDate() : DateTime(3000); // 3000 biar kalo error taro belakang
+                  DateTime dateA = (tA is Timestamp) ? tA.toDate() : DateTime(3000);
                   DateTime dateB = (tB is Timestamp) ? tB.toDate() : DateTime(3000);
                   
-                  // Ascending: A dibandingkan dengan B (Tanggal Kecil di Atas)
                   return dateA.compareTo(dateB); 
                 });
 
@@ -340,14 +337,14 @@ class _HalamanCetakLaporanState extends State<HalamanCetakLaporan> {
         ),
       );
     } else {
-      // MODE IBU HAMIL
+      // MODE IBU HAMIL (PREVIEW JUGA DIGANTI KE 'Bulan') 🛠️✅
       return Card(
         margin: const EdgeInsets.only(bottom: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ListTile(
           leading: const CircleAvatar(backgroundColor: Colors.pinkAccent, child: Icon(Icons.pregnant_woman, color: Colors.white)),
           title: Text(item['nama'] ?? "-", style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text("Hamil: ${item['usia_kehamilan']} mgg | Tensi: ${item['tekanan_darah']} | ${_formatTanggal(item['tgl_pemeriksaan'])}"),
+          subtitle: Text("Hamil: ${item['usia_kehamilan']} Bulan | Tensi: ${item['tekanan_darah']} | ${_formatTanggal(item['tgl_pemeriksaan'])}"),
           trailing: const Icon(Icons.print, color: Colors.grey),
         ),
       );
